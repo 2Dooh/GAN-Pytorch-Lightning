@@ -1,11 +1,13 @@
 from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
 
 from torch.utils.data.dataloader import DataLoader
+
 from torchvision import transforms
 
 from agents.cycle_gan import CycleGAN
 
 import pytorch_lightning as pl
+from pytorch_lightning.loggers import TensorBoardLogger
 
 from utils.load_cfg import load_cfg
 from utils.prepare_seed import prepare_seed
@@ -42,7 +44,16 @@ checkpoint_callback = ModelCheckpoint(
     **cfg.model_checkpoint
 )
 
-trainer = pl.Trainer(callbacks=[checkpoint_callback], default_root_dir=cfg.out_dir, **cfg.trainer)
+logger = TensorBoardLogger(
+    name=cfg.exp_name,
+    **cfg.logger
+)
+
+trainer = pl.Trainer(
+    callbacks=[checkpoint_callback], 
+    default_root_dir=cfg.out_dir, 
+    logger=logger,
+    **cfg.trainer)
 trainer.fit(
     model=cycle_gan,
     train_dataloader=train_queue,

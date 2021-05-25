@@ -20,13 +20,13 @@ def load_cfg(path):
             datetime.datetime.now().strftime("%Y%m%d-%H%M")
         )
     )
-    cfg.summary_dir = os.path.join('exps', cfg.exp_name, 'summaries/')
+    cfg.logger.save_dir = os.path.join('exps', cfg.exp_name, 'summaries/')
     cfg.checkpoint_dir = os.path.join('exps', cfg.exp_name, 'checkpoints/')
     cfg.out_dir = os.path.join('exps', cfg.exp_name, 'out/')
     cfg.log_dir = os.path.join('exps', cfg.exp_name, 'logs/')
 
     makedirs(
-        cfg.summary_dir,
+        cfg.logger.save_dir,
         cfg.checkpoint_dir,
         cfg.out_dir,
         cfg.log_dir

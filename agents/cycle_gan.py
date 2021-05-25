@@ -47,8 +47,9 @@ class CycleGAN(pl.LightningModule):
         self.netG_AB.apply(weights_init); self.netG_BA.apply(weights_init)
         self.netD_A.apply(weights_init); self.netD_B.apply(weights_init)
 
+        self.example_input_array = (torch.rand(*cfg.input_shape), torch.rand(*cfg.input_shape))
+
     def forward(self, real_A, real_B):
-        
         fake_A = self.netG_BA(real_B)
         fake_B = self.netG_AB(real_A)
         return fake_A, fake_B
