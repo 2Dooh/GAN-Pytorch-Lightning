@@ -1,0 +1,61 @@
+exp_name: CycleGAN_0
+exp_cfg:
+  seed: 0
+
+module_cfg:
+  criterion:
+    recon: L1Loss
+    adv: MSELoss
+    
+  net:
+    G:
+      in_channels: 3
+      out_channels: 3
+      hidden_channels: 64
+      activation: Tanh
+    D:
+      in_channels: 3
+      hidden_channels: 64
+  optim:
+    D:
+      name: SGD
+      kwargs: 
+        lr: 0.0025
+        momentum: .9
+        weight_decay: 3.e-3
+    G:
+      name: SGD
+      kwargs:
+        lr: 0.0025
+        momentum: .9
+        weight_decay: 3.e-3
+
+  schedulers:
+    - name: CosineAnnealingLR
+      optim_idx: 0
+      kwargs:
+        T_max: 200
+        eta_min: 0
+    
+    - name: CosineAnnealingLR
+      optim_idx: 1
+      kwargs:
+        T_max: 200
+        eta_min: 0
+
+trainer:
+  max_epochs: 200
+  auto_scale_batch_size: auto
+  deterministic: true
+  gpus: 1
+
+model_checkpoint:
+  monitor: loss_G
+  filename: '[CycleGAN-Horse2Zebra]-{epoch:02d}-{loss_G:.2f}'
+  save_top_k: 3
+  mode: min
+  verbose: true
+
+data_loader:
+  pin_memory: true
+  num_workers: 0
