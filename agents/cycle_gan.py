@@ -1,8 +1,4 @@
-from __future__ import with_statement
-from typing import Any, List
-
 from enum import Enum, auto
-from numpy.core.numeric import identity
 
 import pytorch_lightning as pl
 
@@ -10,14 +6,16 @@ import torch
 from torch import nn
 from torch import optim
 from torch.optim import lr_scheduler
-from torch.optim.optimizer import Optimizer
-from torch.tensor import Tensor
 
 from graphs.models.cycle_gan import Generator, Discriminator
 from graphs.losses.cycle_gan import DiscriminatorLoss, GeneratorLoss
 
 from utils.init_weight import weights_init
+from utils.visualize import show_tensor_images
 
+import random
+
+import matplotlib.pyplot as plt
 class Optim(Enum):
     D_A = 0
     D_B = auto()
@@ -47,7 +45,7 @@ class CycleGAN(pl.LightningModule):
         self.netG_AB.apply(weights_init); self.netG_BA.apply(weights_init)
         self.netD_A.apply(weights_init); self.netD_B.apply(weights_init)
 
-        self.example_input_array = (torch.rand(*cfg.input_shape), torch.rand(*cfg.input_shape))
+        self.example_input_array = (torch.rand(1, *cfg.input_shape), torch.rand(1, *cfg.input_shape))
 
     def forward(self, real_A, real_B):
         fake_A = self.netG_BA(real_B)
@@ -56,7 +54,7 @@ class CycleGAN(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         real_A, real_B = batch
-        loss_G, _, _ = \
+        loss_G, fake_A, fake_B = \
                 self.criterionG(
                     real_A,
                     real_B,
@@ -66,13 +64,15 @@ class CycleGAN(pl.LightningModule):
                     self.netD_B
                 )
         self.log(
-            'loss_G',
+            'loss_G_val',
             loss_G,
             on_step=True,
             on_epoch=True,
             prog_bar=True,
             logger=True
         )
+
+        return (real_A, real_B), (fake_B, fake_A)
 
     def configure_optimizers(self):
         optimizers = []
@@ -123,21 +123,21 @@ class CycleGAN(pl.LightningModule):
                       batch_idx, 
                       optimizer_idx):
         real_A, real_B = train_batch
-
         if optimizer_idx == Optim.D_A.value:
             with torch.no_grad():
                 fake_A = self.netG_BA(real_B)
             loss_D_A = self.criterionD(
                 real_A, 
                 fake_A, 
-                self.netD_A
+                self.netD_A,
+                # self.adv_criterion
             )
             self.log(
                 'loss_D_A', 
                 loss_D_A, 
                 on_step=True, 
                 on_epoch=True, 
-                prog_bar=True, 
+                prog_bar=False, 
                 logger=True
             )
             return loss_D_A
@@ -154,7 +154,7 @@ class CycleGAN(pl.LightningModule):
                 loss_D_B,
                 on_step=True,
                 on_epoch=True,
-                prog_bar=True,
+                prog_bar=False,
                 logger=True
             )
             return loss_D_B
@@ -169,7 +169,7 @@ class CycleGAN(pl.LightningModule):
                     self.netD_B
                 )
             self.log(
-                'loss_G',
+                'loss_G_train',
                 loss_G,
                 on_step=True,
                 on_epoch=True,
@@ -178,4 +178,19 @@ class CycleGAN(pl.LightningModule):
             )
             return loss_G
 
+
+    def validation_epoch_end(self, outputs) -> None:
+        fig, (ax1, ax2) = plt.subplots(ncols=2)
+        i = random.randrange(len(outputs))
+        real, fake = outputs[i]
+        show_tensor_images(ax1, torch.cat(real), num_images=len(real), size=self.cfg.input_shape, title='original')
+        show_tensor_images(ax2, torch.cat(fake), num_images=len(fake), size=self.cfg.input_shape, title='transfer features')
+        plt.show()
+
     
+
+    def backward(self, loss, optimizer, optimizer_idx, *args, **kwargs) -> None:
+        if optimizer_idx == Optim.D_A.value or optimizer_idx == Optim.D_B.value:
+          loss.backward(retain_graph=True)
+        else:
+          return super().backward(loss, optimizer, optimizer_idx, *args, **kwargs)

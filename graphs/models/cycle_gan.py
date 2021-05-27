@@ -20,12 +20,7 @@ class Generator(nn.Module):
             ContractingBlock(hidden_channels),
             ContractingBlock(hidden_channels*2)
         )
-        # self.contract1 = ContractingBlock(hidden_channels)
-        # self.contract2 = ContractingBlock(hidden_channels*2)
-        # self.res_blocks = nn.ModuleList([
-        #     ResidualBlock(hidden_channels * self.RES_MULT)\
-        #         for _ in range(self.N_RES_BLOCK)
-        # ])
+
         self.res = nn.Sequential(
             *[ResidualBlock(hidden_channels * self.RES_MULT)\
                 for _ in range(self.N_RES_BLOCK)]
@@ -35,8 +30,6 @@ class Generator(nn.Module):
             ExpandingBlock(hidden_channels*4),
             ExpandingBlock(hidden_channels*2)
         )
-        # self.expand2 = ExpandingBlock(hidden_channels*4)
-        # self.expand3 = ExpandingBlock(hidden_channels*2)
 
         self.down_feat = FeatureMapBlock(
             in_channels=hidden_channels,
@@ -48,13 +41,7 @@ class Generator(nn.Module):
     def forward(self, x):
         x = self.up_feat(x)
         x = self.contract(x)
-        # x = self.contract1(x)
-        # x = self.contract2(x)
-        # for block in self.res_blocks:
-        #     x = block(x)
         x = self.res(x)
-        # x = self.expand2(x)
-        # x = self.expand3(x)
         x = self.expand(x)
         x = self.down_feat(x)
         x = self.activation(x)
@@ -75,12 +62,12 @@ class Discriminator(nn.Module):
         self.contract = nn.Sequential(*[
             ContractingBlock(
                 in_channels=hidden_channels*rate,
-                use_bn=False,
+                use_bn=False if i == 0 else True,
                 kernel_size=4,
                 activation='LeakyReLU',
                 act_kwargs={'negative_slope': .2}
             )\
-                for rate in growth_rates
+                for i, rate in enumerate(growth_rates)
         ])
 
         self.final = nn.Conv2d(

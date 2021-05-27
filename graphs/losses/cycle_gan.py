@@ -7,7 +7,7 @@ class DiscriminatorLoss(nn.Module):
         self.adv_criterion = adv_criterion
 
     def forward(self, real, fake, netD):
-        D_fake_out = netD(fake.detach())
+        D_fake_out = netD(fake)
         loss_D_fake = \
             self.adv_criterion(
                 D_fake_out, 

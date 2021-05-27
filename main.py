@@ -14,7 +14,7 @@ from utils.prepare_seed import prepare_seed
 
 from datasets.dataset import ImageDataset
 
-cfg_path = 'configs/init.yaml'
+cfg_path = 'configs/horse2zebra.yaml'
 cfg = load_cfg(cfg_path)
 
 prepare_seed(cfg.exp_cfg.seed)
@@ -22,16 +22,17 @@ prepare_seed(cfg.exp_cfg.seed)
 cycle_gan = CycleGAN(cfg=cfg.module_cfg)
 
 transform = transforms.Compose([
-    transforms.Resize(256),
+    transforms.Resize(cfg.module_cfg.input_shape[1:]),
     transforms.RandomHorizontalFlip(),
-    transforms.ToTensor()
+    transforms.ToTensor(),
+    transforms.Normalize([.5]*3, [.5]*3)
 ])
 train_set = ImageDataset(
     root='data/horse2zebra', 
     mode='train', 
     transform=transform
 )
-train_queue = DataLoader(train_set, **cfg.data_loader)
+train_queue = DataLoader(train_set, shuffle=True, **cfg.data_loader)
 val_set = ImageDataset(
     root='data/horse2zebra', 
     mode='test', 

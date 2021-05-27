@@ -13,8 +13,8 @@ from torch.utils.data.dataset import T_co
 class ImageDataset(Dataset):
     def __init__(self,
                  root,
+                 mode,
                  transform=None,
-                 mode='train',
                  **kwargs) -> None:
         super().__init__(**kwargs)
         self.root = root; self.mode = mode
@@ -22,7 +22,7 @@ class ImageDataset(Dataset):
         self.files_A = os.listdir(os.path.join(root, mode + 'A'))
         self.files_B = os.listdir(os.path.join(root, mode + 'B'))
         if len(self.files_A) > len(self.files_B):
-            self.files_A, self.files_B = self.files_B, self.files_A
+            self.files_A, self.files_B = self.files_B, self.files_A.copy()
         self.new_perm()
         assert len(self.files_A) > 0
 
@@ -57,7 +57,7 @@ class ImageDataset(Dataset):
         if index == len(self) - 1:
             self.new_perm()
 
-        return (item_A - .5) * 2, (item_B - .5) * 2
+        return item_A, item_B
 
     def __len__(self):
         return min(len(self.files_A), len(self.files_B))
