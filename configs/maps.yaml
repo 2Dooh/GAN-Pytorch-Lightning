@@ -1,4 +1,4 @@
-exp_name: CycleGAN_02
+exp_name: CycleGAN_Maps
 exp_cfg:
   seed: 0
 
@@ -48,19 +48,19 @@ module_cfg:
 #      optim_idx: 2
 #      kwargs:
 #        T_max: 200
-#        eta_min: 0
+ #       eta_min: 0
 
 trainer:
   max_epochs: 200
-  auto_scale_batch_size: binsearch
+#  auto_scale_batch_size: binsearch
   deterministic: false
   gpus: 1
   gradient_clip_val: .5
-  resume_from_checkpoint: /content/drive/MyDrive/GAN-Pytorch-Lightning/exps/CycleGAN_02/checkpoints/[CycleGAN-Horse2Zebra]-epoch=136-loss_G_val_epoch=3.17.ckpt
+  resume_from_checkpoint: /content/drive/MyDrive/GAN-Pytorch-Lightning/exps/CycleGAN_Maps/checkpoints/[CycleGAN-Maps]-epoch=142-loss_G_val_epoch=1.81.ckpt
 
 model_checkpoint:
   monitor: loss_G_val_epoch
-  filename: '[CycleGAN-Horse2Zebra]-{epoch:02d}-{loss_G_val_epoch:.2f}'
+  filename: '[CycleGAN-Maps]-{epoch:02d}-{loss_G_val_epoch:.2f}'
   save_top_k: 3
   mode: min
   verbose: true
@@ -72,4 +72,4 @@ logger:
 data_loader:
   pin_memory: true
   num_workers: 4
-  batch_size: 1
+  batch_size: 4

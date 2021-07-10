@@ -7,6 +7,8 @@ from torch import nn
 from torch import optim
 from torch.optim import lr_scheduler
 
+from torchvision.utils import make_grid
+
 from graphs.models.cycle_gan import Generator, Discriminator
 from graphs.losses.cycle_gan import DiscriminatorLoss, GeneratorLoss
 
@@ -52,27 +54,7 @@ class CycleGAN(pl.LightningModule):
         fake_B = self.netG_AB(real_A)
         return fake_A, fake_B
 
-    def validation_step(self, batch, batch_idx):
-        real_A, real_B = batch
-        loss_G, fake_A, fake_B = \
-                self.criterionG(
-                    real_A,
-                    real_B,
-                    self.netG_AB,
-                    self.netG_BA,
-                    self.netD_A,
-                    self.netD_B
-                )
-        self.log(
-            'loss_G_val',
-            loss_G,
-            on_step=True,
-            on_epoch=True,
-            prog_bar=True,
-            logger=True
-        )
 
-        return (real_A, real_B), (fake_B, fake_A)
 
     def configure_optimizers(self):
         optimizers = []
@@ -122,10 +104,11 @@ class CycleGAN(pl.LightningModule):
                       train_batch, 
                       batch_idx, 
                       optimizer_idx):
-        real_A, real_B = train_batch
+        real_A = train_batch['A']
+        real_B = train_batch['B']
         if optimizer_idx == Optim.D_A.value:
-            with torch.no_grad():
-                fake_A = self.netG_BA(real_B)
+            # with torch.no_grad():
+            fake_A = self.netG_BA(real_B)
             loss_D_A = self.criterionD(
                 real_A, 
                 fake_A, 
@@ -137,24 +120,25 @@ class CycleGAN(pl.LightningModule):
                 loss_D_A, 
                 on_step=True, 
                 on_epoch=True, 
-                prog_bar=False, 
+                prog_bar=True, 
                 logger=True
             )
             return loss_D_A
         elif optimizer_idx == Optim.D_B.value:
-            with torch.no_grad():
-                fake_B = self.netG_AB(real_A)
+            # with torch.no_grad():
+            fake_B = self.netG_AB(real_A)
             loss_D_B = self.criterionD(
                 real_B, 
                 fake_B, 
-                self.netD_B
+                self.netD_B,
+                # self.adv_criterion
             )
             self.log(
                 'loss_D_B',
                 loss_D_B,
                 on_step=True,
                 on_epoch=True,
-                prog_bar=False,
+                prog_bar=True,
                 logger=True
             )
             return loss_D_B
@@ -166,7 +150,10 @@ class CycleGAN(pl.LightningModule):
                     self.netG_AB,
                     self.netG_BA,
                     self.netD_A,
-                    self.netD_B
+                    self.netD_B,
+                    # self.adv_criterion,
+                    # self.recon_criterion,
+                    # self.recon_criterion
                 )
             self.log(
                 'loss_G_train',
@@ -179,18 +166,130 @@ class CycleGAN(pl.LightningModule):
             return loss_G
 
 
+    def validation_step(self, batch, batch_idx):
+        real_A = batch['A']; real_B = batch['B']
+        loss_G, fake_A, fake_B = \
+                self.criterionG(
+                    real_A,
+                    real_B,
+                    self.netG_AB,
+                    self.netG_BA,
+                    self.netD_A,
+                    self.netD_B
+                )
+        self.log(
+            'loss_G_val',
+            loss_G,
+            on_step=True,
+            on_epoch=True,
+            prog_bar=True,
+            logger=True
+        )
+
+        return {'real': (real_A, real_B), 'fake': (fake_B, fake_A)}
+
     def validation_epoch_end(self, outputs) -> None:
-        fig, (ax1, ax2) = plt.subplots(ncols=2)
-        i = random.randrange(len(outputs))
-        real, fake = outputs[i]
-        show_tensor_images(ax1, torch.cat(real), num_images=len(real), size=self.cfg.input_shape, title='original')
-        show_tensor_images(ax2, torch.cat(fake), num_images=len(fake), size=self.cfg.input_shape, title='transfer features')
+        RA, RB, FA, FB = [], [], [], []
+        for output in outputs:
+          real, fake = output.values()
+          ra, rb = real; fa, fb = fake
+          RA += [ra]; RB += [rb]
+          FA += [fa]; FB += [fb]
+        I = list(range(len(RA)))
+        random.shuffle(I)
+        I = I[:8]
+
+        RA_grid = make_grid(torch.row_stack(RA)[I], nrow=4)
+        RB_grid = make_grid(torch.row_stack(RB)[I], nrow=4)
+        FA_grid = make_grid(torch.row_stack(FA)[I], nrow=4)
+        FB_grid = make_grid(torch.row_stack(FB)[I], nrow=4)
+
+        self.logger.experiment.add_image('generated_images_B2A', FA_grid, self.current_epoch)
+        self.logger.experiment.add_image('generated_images_A2B', FB_grid, self.current_epoch)
+
+        fig, (ax1, ax2) = plt.subplots(nrows=2, sharex=True)
+        ax1.imshow(RA_grid.cpu().permute(1, 2, 0).squeeze()*.5 + .5)
+        ax2.imshow(RB_grid.cpu().permute(1, 2, 0).squeeze()*.5 + .5)
+        plt.title('Original')
+        # plt.savefig('assets/{}-Ori-{}'.format(self.cfg.exp_name, self.i))
         plt.show()
+        plt.close()
 
-    
+        fig, (ax1, ax2) = plt.subplots(nrows=2, sharex=True)
+        ax1.imshow(FA_grid.cpu().permute(1, 2, 0).squeeze()*.5 + .5)
+        ax2.imshow(FB_grid.cpu().permute(1, 2, 0).squeeze()*.5 + .5)
+        plt.title('Generated')
+        # plt.savefig('assets/{}-Gen-{}'.format(self.cfg.exp_name, self.i))
+        plt.show()
+        plt.close()
 
-    def backward(self, loss, optimizer, optimizer_idx, *args, **kwargs) -> None:
-        if optimizer_idx == Optim.D_A.value or optimizer_idx == Optim.D_B.value:
-          loss.backward(retain_graph=True)
-        else:
-          return super().backward(loss, optimizer, optimizer_idx, *args, **kwargs)
+        # self.i += 1
+        # fig, (ax1, ax2) = plt.subplots(ncols=2)
+        #  = random.randrange(len(outputs))
+        # real, fake = outputs[i].values()
+        # show_tensor_images(ax1, torch.cat(real), num_images=len(real), size=self.cfg.input_shape, title='original')
+        # show_tensor_images(ax2, torch.cat(fake), num_images=len(fake), size=self.cfg.input_shape, title='transfer features')
+        # plt.show()
+
+    def test_step(self, batch, batch_idx):
+        real_A = batch['A']; real_B = batch['B']
+        loss_G, fake_A, fake_B = \
+                self.criterionG(
+                    real_A,
+                    real_B,
+                    self.netG_AB,
+                    self.netG_BA,
+                    self.netD_A,
+                    self.netD_B
+                )
+        self.log(
+            'loss_G_val',
+            loss_G,
+            on_step=True,
+            on_epoch=True,
+            prog_bar=True,
+            logger=True
+        )
+
+        return {'real': (real_A, real_B), 'fake': (fake_B, fake_A)}
+
+    def test_epoch_end(self, outputs) -> None:
+        RA, RB, FA, FB = [], [], [], []
+        for output in outputs:
+          real, fake = output.values()
+          ra, rb = real; fa, fb = fake
+          RA += [ra]; RB += [rb]
+          FA += [fa]; FB += [fb]
+        I = list(range(len(RA)))
+        random.shuffle(I)
+        I = I[:8]
+
+        RA_grid = make_grid(torch.row_stack(RA)[I], nrow=4)
+        RB_grid = make_grid(torch.row_stack(RB)[I], nrow=4)
+        FA_grid = make_grid(torch.row_stack(FA)[I], nrow=4)
+        FB_grid = make_grid(torch.row_stack(FB)[I], nrow=4)
+
+        # self.logger.experiment.add_image('generated_images_B2A', FA_grid, self.current_epoch)
+        # self.logger.experiment.add_image('generated_images_A2B', FB_grid, self.current_epoch)
+
+        fig, (ax1, ax2) = plt.subplots(nrows=2, sharex=True)
+        ax1.imshow(RA_grid.cpu().permute(1, 2, 0).squeeze()*.5 + .5)
+        ax2.imshow(RB_grid.cpu().permute(1, 2, 0).squeeze()*.5 + .5)
+        plt.title('Original')
+        plt.savefig('assets/{}-Horse2Zebra-Ori.pdf'.format(self.__class__.__name__))
+        plt.show()
+        plt.close()
+
+        fig, (ax1, ax2) = plt.subplots(nrows=2, sharex=True)
+        ax1.imshow(FA_grid.cpu().permute(1, 2, 0).squeeze()*.5 + .5)
+        ax2.imshow(FB_grid.cpu().permute(1, 2, 0).squeeze()*.5 + .5)
+        plt.title('Generated')
+        plt.savefig('assets/{}-Horse2Zebra-Gen.pdf'.format(self.__class__.__name__))
+        plt.show()
+        plt.close()
+
+    # def backward(self, loss, optimizer, optimizer_idx, *args, **kwargs) -> None:
+    #     if optimizer_idx == Optim.D_A.value or optimizer_idx == Optim.D_B.value:
+    #       loss.backward(retain_graph=True)
+    #     else:
+    #       return super().backward(loss, optimizer, optimizer_idx, *args, **kwargs)

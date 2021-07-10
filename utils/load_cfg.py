@@ -1,4 +1,4 @@
-import yaml
+from yaml import safe_load
 
 from easydict import EasyDict as edict
 
@@ -10,6 +10,7 @@ from logging.handlers import RotatingFileHandler
 from pprint import pformat
 
 import datetime
+
 
 def load_cfg(path):
     cfg, _ = load_yaml_cfg(path)
@@ -40,17 +41,19 @@ def load_cfg(path):
     logging.getLogger().info(pformat(cfg))
 
     return cfg
-    
+
 
 def makedirs(*args):
     for arg in args:
         os.makedirs(arg, exist_ok=True)
 
+
 def load_yaml_cfg(path):
     with open(path, 'r') as f:
-        cfg_ori = yaml.safe_load(f)
+        cfg_ori = safe_load(f)
         cfg = edict(cfg_ori)
     return cfg, cfg_ori
+
 
 def setup_logging(log_dir: str, console_log=True) -> None:
     file_format = \
@@ -61,8 +64,8 @@ def setup_logging(log_dir: str, console_log=True) -> None:
     main_logger = logging.getLogger()
     main_logger.setLevel(logging.INFO)
 
-    exp_file_handler = RotatingFileHandler(filename=os.path.join(log_dir, 'exp_debug.log'), 
-                                           maxBytes=1e6, 
+    exp_file_handler = RotatingFileHandler(filename=os.path.join(log_dir, 'exp_debug.log'),
+                                           maxBytes=1e6,
                                            backupCount=5)
     exp_file_handler.setLevel(logging.DEBUG)
     exp_file_handler.setFormatter(logging.Formatter(file_format))
@@ -81,6 +84,6 @@ def setup_logging(log_dir: str, console_log=True) -> None:
         console_handler.setFormatter(logging.Formatter(console_format))
 
         main_logger.addHandler(console_handler)
-        
+
     main_logger.addHandler(exp_file_handler)
     main_logger.addHandler(exp_errors_file_handler)

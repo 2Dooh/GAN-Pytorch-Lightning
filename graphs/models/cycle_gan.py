@@ -1,4 +1,5 @@
 from torch import nn
+import torch
 
 from .utils.operations import ContractingBlock, ResidualBlock, ExpandingBlock, FeatureMapBlock
 
@@ -20,7 +21,6 @@ class Generator(nn.Module):
             ContractingBlock(hidden_channels),
             ContractingBlock(hidden_channels*2)
         )
-
         self.res = nn.Sequential(
             *[ResidualBlock(hidden_channels * self.RES_MULT)\
                 for _ in range(self.N_RES_BLOCK)]
